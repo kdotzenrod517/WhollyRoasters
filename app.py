@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from forms import RegistrationForm
 from flask_sqlalchemy import SQLAlchemy
 
@@ -54,38 +54,32 @@ def shop():
                                                "24oz French Roast", 
                                                "96oz Whole Beans" ])
 
-@app.route("/register", methods=["GET", "POST"])
+@app.route('/register', methods=['POST'])
 
 def register():
-    message = ""
+    json_data = request.get_json()
+    user_match = User.query.filter_by(username=json_data['uname']).first()
+    if user_match:
+        return jsonify({'Message': 'User already exists!'})
 
-    form = RegistrationForm()
+    new_user = User(username = json_data['uname'], password = json_data['pword'])
+    db.session.add(new_user)
+    db.session.commit()
 
-    if request.method == "POST":
-        if form.validate_on_submit():
-            
-            user_match = User.query.filter_by(username=form.data['uname']).first()
-            if user_match:
-                message = "User already exists!"
-                return render_template("register.html", message=message,form=form)
-            
-            username = form.data["uname"]
-            password = form.data["pword"]
-            confirm = form.data["confirm"]
-
-            us = User(username = username, password = password)
-            db.session.add(us)
-            db.session.commit()
-            
-            message = f"Successfully registered {username}!"
-        else:
-            message = "Registration failed."
-
-    return render_template("register.html", message=message, form=form)
+    return jsonify({'Message': 'A new user was created!'}) 
 
 @app.route("/admin", methods=["GET"])
 
 def admin():
-    users = User.query.all()
-    shippers = ShippingInfo.query.all()
-    return render_template("admin.html", users=users, shippers=shippers)
+    db_users = User.query.all()
+    db_shippers = ShippingInfo.query.all()
+    
+    users = []
+    for db_user in db_users:
+        users.append({'id': db_user.id, 'username': db_user.username})
+    
+    shippers = []
+    for db_shipper in db_shippers:
+        shippers.append({'full_name': db_shipper.full_name, 'address': db_shipper.address, 'user_id': db_shipper.user_id})
+        
+    return jsonify({'users': users, 'shipping_info': shippers})
